@@ -5,10 +5,13 @@
 """
 
 import json
+from datetime import datetime
 from functools import cache
 from pathlib import Path
+from random import choice
 
 DATA_DIR = Path(__file__).resolve().parent.parent / "data"
+LEARNING_LOG_DIR = DATA_DIR.parent / "learning_log"
 MAX_RESULTS = 3
 
 
@@ -67,6 +70,24 @@ def search_glossary(query: str) -> str:
     )
 
 
+def make_quiz(lecture: int) -> str:
+    """指定した回の用語から1つ選び、確認問題と答えを返す。
+
+    「第2回の確認問題を出して」のように、復習用の問題を求められたときに使う。
+    """
+    terms = [e for e in load_glossary() if e["lecture"] == lecture]
+    if not terms:
+        return f"第{lecture}回の用語が用語集にありません。"
+    term = choice(terms)
+    return json.dumps(
+        {
+            "question": f"「{term['term']}」の意味は？",
+            "answer": term["definition"],
+        },
+        ensure_ascii=False,
+    )
+
+
 def get_lecture_summary(lecture: int) -> str:
     """指定した回（1始まりの整数）の講義の要点を返す。
 
@@ -77,3 +98,20 @@ def get_lecture_summary(lecture: int) -> str:
         available = sorted(p.stem for p in (DATA_DIR / "lectures").glob("*.md"))
         return f"第{lecture}回の要点はまだありません。用意されている回: {', '.join(available)}"
     return path.read_text(encoding="utf-8")
+
+
+def save_learning_log(entry: str) -> str:
+    """利用者が明示的に保存を求めた学習記録を learning_log/ に追記する。
+
+    保存前に利用者の承認が必要なツールとして登録する。
+    """
+    content = entry.strip()
+    if not content:
+        return "記録内容が空のため、保存しませんでした。"
+
+    LEARNING_LOG_DIR.mkdir(parents=True, exist_ok=True)
+    path = LEARNING_LOG_DIR / "learning_log.md"
+    timestamp = datetime.now().astimezone().isoformat(timespec="seconds")
+    with path.open("a", encoding="utf-8") as f:
+        f.write(f"## {timestamp}\n\n{content}\n\n")
+    return "学習記録を learning_log/learning_log.md に保存しました。"
